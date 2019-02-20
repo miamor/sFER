@@ -6,3 +6,10 @@
 *.pyc
 dist/
 *.egg-info
+/model
+/checkpoints
+/logs
+/data
+/image
+/__pycache__
+/__archived
