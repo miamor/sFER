@@ -5,20 +5,21 @@ from tqdm import tqdm
 import os
 import numpy as np
 
-features_DIR = 'data/AFEW/Train_AFEW/AlignedFaces_LBPTOP_Points/Features/'
+fold = 'Val'
+features_DIR = 'data/AFEW/'+fold+'_AFEW/AlignedFaces_LBPTOP_Points/Features/'
 
 def create_label_file():
     # Create a file containing list of genuine smiley faces
     labeled_video = []
-    for filename in os.listdir('data/AFEW/Train_AFEW/Happy'):
+    for filename in os.listdir('data/AFEW/'+fold+'_AFEW/Happy'):
         filename = filename.split('.')[0]
         labeled_video.append([filename, 1])
 
-    for filename in os.listdir('data/AFEW/Train_AFEW/Neutral'):
+    for filename in os.listdir('data/AFEW/'+fold+'_AFEW/Neutral'):
         filename = filename.split('.')[0]
         labeled_video.append([filename, 0])
 
-    with open('data/labeled-video.pkl', 'wb') as fout:
+    with open('data/labeled-video-'+fold+'.pkl', 'wb') as fout:
         pickle.dump(labeled_video, fout)
 
 
@@ -34,7 +35,7 @@ def get_spatial_features_video(video, label):
     return cnn_features
 
 def save_features():
-    with open('data/labeled-video.pkl', 'rb') as fin:
+    with open('data/labeled-video-'+fold+'.pkl', 'rb') as fin:
         labeled_videos = pickle.load(fin) # simply [[video, label],...]
         for video_label in labeled_videos:
             video = video_label[0]
@@ -48,8 +49,10 @@ def save_features():
             if not os.path.isfile(ft_file):
                 with open(ft_file, 'wb') as fout:
                     pickle.dump(cnn_features, fout)
+            else:
+                print('File '+ft_file+' existed.')
             
 
 if __name__ == '__main__':
-    create_label_file()
-    #save_features()
+    #create_label_file()
+    save_features()

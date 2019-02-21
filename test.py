@@ -66,8 +66,9 @@ if __name__ == '__main__':
 
     # unittest.main()
     keras.backend.set_image_dim_ordering('tf')
-    model = VGGFace(include_top=False, model='senet50', input_shape=(224, 224, 3), pooling='avg')  # pooling: None, avg or max
+    model = VGGFace(include_top=False, model='vgg16', input_shape=(224, 224, 3), pooling='avg')  # pooling: None, avg or max
 
+    '''
     img = image.load_img('data/AFEW/Train_AFEW/AlignedFaces_LBPTOP_Points/Faces/000247920/I_1001.jpg', target_size=(224,224))
     x = image.img_to_array(img)
     x = np.expand_dims(x, axis=0)
@@ -75,12 +76,12 @@ if __name__ == '__main__':
     preds = model.predict(x)
     print('\n', preds) # vgg features here
     print('\n', preds.shape) # vgg features here
-    
-    print(model.summary())
-
     '''
-    dataDir = 'data/AFEW/Train_AFEW/AlignedFaces_LBPTOP_Points/Faces/'
-    ftDir = 'data/AFEW/Train_AFEW/AlignedFaces_LBPTOP_Points/Features/'
+
+    print(model.summary())
+    
+    dataDir = 'data/AFEW/Val_AFEW/AlignedFaces_LBPTOP_Points/Faces/'
+    ftDir = 'data/AFEW/Val_AFEW/AlignedFaces_LBPTOP_Points/Features/'
     for folder in os.listdir(dataDir):
         if int(args.start) <= int(folder) <= int(args.end):
             folder_dir = os.path.join(dataDir, folder)
@@ -107,7 +108,6 @@ if __name__ == '__main__':
 
                     #print('Saving to '+ft_file_dir)
                     np.savetxt(ft_file_dir, features)
-    '''
 
     '''
             for ofile in os.listdir(folder_dir):
