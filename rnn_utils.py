@@ -10,67 +10,6 @@ import pickle
 import os
 
 
-def pad(inputX, frames):
-    i = len(inputX)
-    # print(inputX)
-    leftframes = frames - i
-    if leftframes > 0:
-        zeros = np.zeros([leftframes, 512])
-        # print(zeros)
-        inputX = np.concatenate((inputX, zeros), axis=0)
-        # inputX = np.array()
-        # print(inputX)
-    return inputX
-
-
-def get_data(listfile, num_frames, num_classes, input_length):
-    X = []
-    y = []
-    # temp_list = deque()
-
-    with open(listfile, 'rb') as fin:
-        labeled_videos = pickle.load(fin)  # simply [[video, label],...]
-        for video_label in labeled_videos:
-            video = video_label[0]
-            label = video_label[1]
-
-            temp_list = []
-
-            ft_file = 'data/cnn_features/cnn-features-video-' + video + '.pkl'
-            with open(ft_file, 'rb') as ftin:
-                features = pickle.load(ftin)
-
-                i = 0
-                for ft in features:
-                    i = i+1
-                    if i <= num_frames:
-                        temp_list.append(ft)
-
-            flat = np.array(list(temp_list))
-
-            if i < num_frames:
-                zeros = np.zeros((num_frames-i, 512))
-                flat = np.concatenate((flat, zeros), axis=0)
-
-            X.append(flat)
-            y.append(label)
-
-    X = np.array(X)
-    y = to_categorical(y, num_classes)
-
-    return X, y
-
-
-def get_training_data(listfile, num_frames, num_classes, input_length):
-    X, y = get_data(listfile, num_frames, num_classes, input_length)
-
-    # Split into train and test.
-    X_train, X_val, y_train, y_val = train_test_split(
-        X, y, test_size=0.1, random_state=42)
-
-    return X_train, X_val, y_train, y_val
-
-
 def get_video_seq(num_frames, video_nums, labels):
     """Get the data from our saved predictions or pooled features."""
 
@@ -80,7 +19,7 @@ def get_video_seq(num_frames, video_nums, labels):
     l = 0
     while l < len(video_nums):
         video = video_nums[l]
-        #label = labels[l]
+        # label = labels[l]
         l += 1
 
         temp_list = []
@@ -103,7 +42,7 @@ def get_video_seq(num_frames, video_nums, labels):
 
         X.append(flat)
 
-        #X = np.concatenate(X, flat)
+        # X = np.concatenate(X, flat)
 
     X = np.array(X)
 
