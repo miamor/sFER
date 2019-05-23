@@ -2,10 +2,8 @@ from __future__ import print_function
 
 from keras.preprocessing import sequence
 from keras.models import Sequential, Model, load_model, model_from_json
-from keras.layers import Dense, Dropout, Embedding, LSTM, Bidirectional, Input, Activation, Flatten, Conv1D, TimeDistributed, Add, RepeatVector, Permute, Multiply, GRU
+from keras.layers import Dense, Dropout, Embedding, LSTM, Bidirectional, Input, Activation, Flatten, Conv1D, TimeDistributed, Add, RepeatVector, Permute, Multiply
 from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau, TerminateOnNaN, CSVLogger
-import keras_metrics as km
-from keras.callbacks import Callback
 
 from rnn_utils import *
 from util import *
@@ -17,12 +15,11 @@ import matplotlib.pyplot as plt
 import json
 import os
 import argparse
-from datetime import date
-today = date.today()
+
 
 from sklearn import model_selection
-# from sklearn.metrics import classification_report
-# from sklearn.metrics import confusion_matrix
+from sklearn.metrics import classification_report
+from sklearn.metrics import confusion_matrix
 from sklearn.metrics import accuracy_score
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
@@ -32,7 +29,6 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
 import joblib
 
-from sklearn.metrics import classification_report, confusion_matrix, f1_score, precision_score, recall_score
 
 input_length = 512
 frames = 50
@@ -71,46 +67,8 @@ def create_model():
 '''
 
 
-class Metrics(Callback):
-    def on_train_begin(self, logs={}):
-        self.val_f1s = []
-        self.val_recalls = []
-        self.val_precisions = []
-
-    def on_epoch_end(self, epoch, logs={}):
-        print(self.model.validation_data)
-        val_predict = (np.asarray(self.model.predict(
-            self.model.validation_data[0]))).round()
-        val_targ = self.model.validation_data[1]
-        _val_f1 = f1_score(val_targ, val_predict)
-        _val_recall = recall_score(val_targ, val_predict)
-        _val_precision = precision_score(val_targ, val_predict)
-        self.val_f1s.append(_val_f1)
-        self.val_recalls.append(_val_recall)
-        self.val_precisions.append(_val_precision)
-        print("— val_f1: % f — val_precision: % f — val_recall % f" % (_val_f1, _val_precision, _val_recall))
-        return
-
-
-metrics = Metrics()
-
-
 def create_model(mode=1):
-    if mode == 0:
-        input_layer = Input(shape=(frames, input_length, ))
-        lstm = LSTM(units=lstm_units, return_sequences=True)(input_layer)
-        # lstm = Bidirectional(
-        #     LSTM(units=lstm_units, return_sequences=False))(lstm)
-
-        dropout = Dropout(0.8)(lstm)
-        flatten = Flatten()(dropout)
-        out = Dense(num_classes, activation='softmax')(flatten)
-
-        model = Model(inputs=input_layer, outputs=out)
-        # model.compile('adam', 'binary_crossentropy', metrics=['accuracy'])
-        model.compile('adam', 'binary_crossentropy',
-                      metrics=['accuracy', km.binary_precision(), km.binary_recall()])
-    elif mode == 1:
+    if mode == 1:
         input_layer = Input(shape=(frames, input_length, ))
         lstm = Bidirectional(
             LSTM(units=lstm_units, return_sequences=True))(input_layer)
@@ -122,9 +80,7 @@ def create_model(mode=1):
         out = Dense(num_classes, activation='softmax')(flatten)
 
         model = Model(inputs=input_layer, outputs=out)
-        # model.compile('adam', 'binary_crossentropy', metrics=['accuracy'])
-        model.compile('adam', 'binary_crossentropy',
-                      metrics=['accuracy', km.binary_precision(), km.binary_recall()])
+        model.compile('adam', 'binary_crossentropy', metrics=['accuracy'])
     elif mode == 2:
         input_layer = Input(shape=(frames, input_length, ))
         lstm_1 = Bidirectional(
@@ -147,8 +103,7 @@ def create_model(mode=1):
         input_dims = 10
 
         # attention layer
-        attention_probs = Dense(
-            input_length, activation='softmax')(input_layer)
+        attention_probs = Dense(input_length, activation='softmax')(input_layer)
         attention_mul = Multiply()([input_layer, attention_probs])
 
         lstm = Bidirectional(
@@ -165,44 +120,13 @@ def create_model(mode=1):
 
         # rep = Multiply()([lstm, attention])
 
-        dropout = Dropout(0.8)(lstm)
-        flatten = Flatten()(dropout)
-        out = Dense(num_classes, activation='softmax')(flatten)
-
-        model = Model(inputs=input_layer, outputs=out)
-        # model.compile('adam', 'binary_crossentropy', metrics=['accuracy'])
-        model.compile('adam', 'binary_crossentropy',
-                      metrics=['accuracy', km.binary_precision(), km.binary_recall()])
-
-    elif mode == 4:
-        input_layer = Input(shape=(frames, input_length, ))
-        input_dims = 10
-
-        # attention layer
-        attention_probs = Dense(
-            input_length, activation='softmax')(input_layer)
-        attention_mul = Multiply()([input_layer, attention_probs])
-
-        lstm = Bidirectional(
-            GRU(units=lstm_units, return_sequences=True))(attention_mul)
-
-        # # compute importance for each step
-        # attention = Dense(1, activation='tanh')(lstm)
-        # attention = Flatten()(attention)
-        # attention = Activation('softmax')(attention)
-        # attention = RepeatVector(lstm_units)(attention)
-        # attention = Permute([2, 1])(attention)
-
-        # rep = Multiply()([lstm, attention])
 
         dropout = Dropout(0.8)(lstm)
         flatten = Flatten()(dropout)
         out = Dense(num_classes, activation='softmax')(flatten)
 
         model = Model(inputs=input_layer, outputs=out)
-        # model.compile('adam', 'binary_crossentropy', metrics=['accuracy'])
-        model.compile('adam', 'binary_crossentropy',
-                      metrics=['accuracy', km.binary_precision(), km.binary_recall()])
+        model.compile('adam', 'binary_crossentropy', metrics=['accuracy'])
 
     model.summary()
     return model
@@ -211,9 +135,12 @@ def create_model(mode=1):
 def train(data, model_path=None, mode=1):
     print('Train...')
 
+
     # ## Load data
     (x_train, x_val, y_train, y_val) = data
     # (x_train, x_val, x_pair_train, x_pair_val, y_train, y_val) = data
+
+
 
     input_train = x_train
     input_val = x_val
@@ -226,29 +153,22 @@ def train(data, model_path=None, mode=1):
     print(x_train.shape)
     print(y_train.shape)
 
+
     # ## Create or load model
     if model_path == None:
         model = create_model(mode=mode)
-        save_dir = 'checkpoints/MAHNOB_frames_' + \
-            str(frames)+'_'+str(args.train_mode)+'__'+today.strftime("%d.%m")
+        save_dir = 'checkpoints/MAHNOB_frames_'+str(frames)+'_'+str(args.train_mode)
     else:
-        # model = load_model(model_path)
-        model = load_model(model_path, custom_objects={
-                              'binary_precision': km.binary_precision(), 'binary_recall': km.binary_recall()})
+        model = load_model(model_path)
         save_dir = 'checkpoints/'+model_path.split('/')[-2]
 
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
 
-    # save_model_name = save_dir+'/{epoch:02d}__loss-{loss:.2f}__val_loss-{val_loss:.2f}__acc-{acc:.2f}__val_acc-{val_acc:.2f}__precision-{precision:.2f}__val_precision-{val_precision:.2f}__recall-{recall:.2f}__val_recall-{val_recall:.2f}.h5'
-    save_model_name = save_dir+'/{epoch:02d}__vloss-{val_loss:.2f}__vacc-{val_acc:.2f}__vprecision-{val_precision:.2f}__vrecall-{val_recall:.2f}.h5'
+
     # ## Fit model
-    model_checkpoint = ModelCheckpoint(filepath=save_model_name,
+    model_checkpoint = ModelCheckpoint(filepath=save_dir+'/bi_lstm-{epoch:02d}_loss-{loss:.5f}_val_loss-{val_loss:.5f}.h5',
                                        monitor='val_loss',
-                                    #    monitor='val_precision',
                                        verbose=1,
                                        save_best_only=True,
-                                    #    save_best_only=False,
                                        save_weights_only=False,
                                        mode='auto',
                                        period=1)
@@ -261,32 +181,36 @@ def train(data, model_path=None, mode=1):
                                    verbose=1)
     reduce_learning_rate = ReduceLROnPlateau(monitor='val_loss',
                                              factor=0.2,
-                                             patience=8,
+                                             patience=6,
                                              verbose=1,
                                              epsilon=0.001,
                                              cooldown=0,
-                                             min_lr=0.000001)
+                                             min_lr=0.00001)
     callbacks = [model_checkpoint,
-                #  metrics,
-                #  csv_logger,
+                 # csv_logger,
                  early_stopping,
                  reduce_learning_rate
                  ]
 
     history = model.fit(input_train, y_train,
-                        validation_data=(input_val, y_val),
-                        batch_size=batch_size,
-                        epochs=epochs,
-                        callbacks=callbacks,
-                        verbose=1)
+                      validation_data=(input_val, y_val),
+                      batch_size=batch_size,
+                      epochs=epochs,
+                      callbacks=callbacks,
+                      verbose=1)
 
-    # # Save model
-    # save_model_dir = 'output/bi_lstm__MAHNOB_12h49/'
-    # if not os.path.isdir(save_model_dir):
-    #     os.makedirs(save_model_dir)
-    # save_model_name = save_model_dir+'/bi_lstm'
-    # model.save(save_model_name+'.h5')
-    # print("Saved model to disk")
+
+
+
+
+    # Save model
+    save_model_dir = 'output/bi_lstm__MAHNOB_12h49/'
+    if not os.path.isdir(save_model_dir):
+        os.makedirs(save_model_dir)
+    save_model_name = save_model_dir+'/bi_lstm'
+    model.save(save_model_name+'.h5')
+    print("Saved model to disk")
+
 
     # save_model_dir = 'output/new__' + \
     #     str(round(score[1]*100, 2))+'_'+str(round(scoreTest[1]*100, 2))
@@ -313,7 +237,7 @@ def train(data, model_path=None, mode=1):
     return model, history, save_model_name
 
 
-def evaluate(data, model_path, dataset, mode=1):
+def evaluate(data, model_path, mode=1):
     (X, Y, y, files) = data
     # (X, Y, y, files, X_pair) = data
 
@@ -333,30 +257,21 @@ def evaluate(data, model_path, dataset, mode=1):
     # loaded_model.load_weights(model_name+".h5")
 
     # load & compile model
-    # loaded_model = load_model(model_path)
-    loaded_model = load_model(model_path, custom_objects={
-                              'binary_precision': km.binary_precision(), 'binary_recall': km.binary_recall()})
+    loaded_model = load_model(model_path)
     print("\nLoaded model from disk")
     loaded_model.summary()
 
     # Evaluate loaded model on test data
-    print(loaded_model.metrics_names)
     score = loaded_model.evaluate(input_test, Y, verbose=1)
-    print(score)
-    print("Evaluate on "+dataset+" test set")
-    # print("%s: %.2f%%\n" % (loaded_model.metrics_names[1], score[1]*100))
-    for i in range(len(loaded_model.metrics_names)):
-        print("%s: %.2f%%\n" % (loaded_model.metrics_names[i], score[i]*100))
+    print("Evaluate on test set")
+    print("%s: %.2f%%\n" % (loaded_model.metrics_names[1], score[1]*100))
 
     # loaded_model.predict_class(X)
     y_pred = loaded_model.predict(X)
     predicted = np.argmax(y_pred, axis=1)
-    y = np.array(y, dtype=int)
 
-    # print(predicted)
-    # print(y)
-
-    print(classification_report(y, predicted))
+    print(predicted)
+    print(np.array(y, dtype=int))
 
     # Stat
     total_neg = 0
@@ -384,6 +299,29 @@ def evaluate(data, model_path, dataset, mode=1):
     # incorrects = np.nonzero(predicted != Y)
     # incorrects = np.nonzero(loaded_model.predict_class(X).reshape((-1,)) != Y)
     # print(incorrects)
+
+
+def predict(x, model_name):
+    # # load json and create model
+    # json_file = open(model_name+'.json', 'r')
+    # loaded_model_json = json_file.read()
+    # json_file.close()
+    # loaded_model = model_from_json(loaded_model_json)
+    # # load weights into new model
+    # loaded_model.load_weights(model_name+".h5")
+
+    # load model
+    loaded_model = load_model(model_name+'.h5')
+    print("Loaded model from disk")
+
+    # evaluate loaded model on test data
+    loaded_model.compile(loss='binary_crossentropy',
+                         optimizer='rmsprop', metrics=['accuracy'])
+
+    preds = loaded_model.predict(x, verbose=0)
+    np.set_printoptions(suppress=True)
+
+    return preds
 
 
 def plot_history(history):
@@ -431,6 +369,8 @@ def plot_history(history):
     plt.ylabel('Accuracy')
     plt.legend()
     plt.show()
+
+
 
 
 def train_classifier(X_train, Y_train, clf='CART', save_path=None):
@@ -490,20 +430,19 @@ def evaluate_classifier(X, Y, classifier_path='output/classifier.pkl'):
     # Use the loaded pickled model to make predictions
     predictions = clf.predict(X)
 
-    predictions = np.array(predictions, dtype=int)
-    # predictions = np.argmax(predictions, axis=1)
-    Y = np.array(Y, dtype=int)
-
-    # print("Prediction :")
-    # print(np.asarray(predictions, dtype="int32"))
-    # print("Target :")
-    # print(np.asarray(Y, dtype="int32"))
+    print("Prediction :")
+    print(np.asarray(predictions, dtype="int32"))
+    print("Target :")
 
     print('Y.shape~ ', Y.shape)
     print(predictions.shape)
 
     print("\nTest accuration: {}".format(accuracy_score(Y, predictions)))
+    print(np.asarray(Y, dtype="int32"))
     print(classification_report(Y, predictions))
+
+
+
 
 
 if __name__ == '__main__':
@@ -519,39 +458,33 @@ if __name__ == '__main__':
     trainParser.add_argument('-m', '--model', type=str, default=None)
     trainParser.add_argument('-t', '--train_mode', type=int, default=1)
 
+
     evalParser = subparsers.add_parser(
         'eval', help='Evaluate a trained model.')
     evalParser.add_argument('-c', '--clf', type=str, default='NN')
     evalParser.add_argument('-m', '--model', type=str)
 
+
     args = parser.parse_args()
 
-    print(args.mode)
 
     if args.mode == 'train':
         data_train = get_training_data(
             '/media/tunguyen/Others/Dataset/FacialExpressions/processed_data/'+args.dataset+'/seq_cnn_features/Train', frames, num_classes, input_length)
 
-        if args.clf == 'NN':
-            model, hist, model_name = train(
-                data=data_train, model_path=args.model, mode=args.train_mode)
+        if args.clf =='NN':
+            model, hist, model_name = train(data=data_train, model_path=args.model, mode=args.train_mode)
             plot_history(hist)
-
         else:
-            if args.clf == 'SVM':
-                x_train, _, y_train, _ = get_data('/media/tunguyen/Others/Dataset/FacialExpressions/processed_data/'+args.dataset+'/seq_cnn_features/Train', frames, num_classes, input_length)
-            else:
-                x_train, x_val, y_train, y_val = data_train
-                print('x_train.shape ', x_train.shape)
-                print('x_val.shape ', x_val.shape)
-                x_train = np.concatenate((x_train, x_val))
-                y_train = np.concatenate((y_train, y_val))
-
+            x_train, x_val, y_train, y_val = data_train
+            print('x_train.shape ', x_train.shape)
+            print('x_val.shape ', x_val.shape)
+            x_train = np.concatenate((x_train, x_val))
+            y_train = np.concatenate((y_train, y_val))
             x_train = x_train.reshape(x_train.shape[0], -1)
             print('x_train.shape ', x_train.shape)
+            train_classifier(x_train, y_train, args.clf, save_path='output/classifier_'+args.dataset+'_'+args.clf+'.pkl')
 
-            train_classifier(x_train, y_train, args.clf,
-                             save_path='output/classifier_'+args.dataset+'_'+args.clf+'.pkl')
 
     if args.mode == 'eval':
         # data_test = get_data(
@@ -559,20 +492,16 @@ if __name__ == '__main__':
         data_test = get_data(
             '/media/tunguyen/Others/Dataset/FacialExpressions/processed_data/'+args.dataset+'/seq_cnn_features/Test', frames, num_classes, input_length)
 
-        if args.clf == 'NN':
+        if args.clf =='NN':
             # model_path = "checkpoints/MAHNOB_frames_50/bi_lstm-12_loss-0.24555_val_loss-0.25654.h5"
-            evaluate(data_test, args.model, args.dataset)
+            evaluate(data_test, args.model)
         else:
             X, Y, y, files = data_test
             X = X.reshape(X.shape[0], -1)
             if args.clf == 'SVM':
                 Y = y
-            
-            model_path = args.model
-            if not args.model or args.model == None:
-                model_path = 'output/classifier_MAHNOB_'+args.clf+'.pkl'
+            evaluate_classifier(X, Y, classifier_path=args.model)
 
-            evaluate_classifier(X, Y, classifier_path=model_path)
 
     # video_nums = ['000451280', '002607280', '000215738', '000257240', '000506080', '001343200', '001656240']
     # labels = [1, 1, 0,   1, 0, 0, 0]

@@ -4,6 +4,8 @@ import os
 import numpy as np
 import glob
 import keras
+import matplotlib.pyplot as plt
+import argparse
 
 from util import *
 from keras_vggface import VGGFace
@@ -203,19 +205,146 @@ def detect_align_face(dataset):
     for expression in sorted(os.listdir(frame_dir)):
         # if expression in ['Happy', 'Neutral', 'Sad_']:
         if 1 == 1:
+        # if expression == '1':
             expression_path = os.path.join(frame_dir, expression)
             print(expression_path)
             for inputDir_name in sorted(os.listdir(expression_path)):
-                outputDir = os.path.join(
-                    alignDir, expression+'/'+inputDir_name)
-                if not os.path.exists(outputDir):
-                    os.makedirs(outputDir)
+                # if inputDir_name == '49_475_520':
+                if 1 == 1:
+                    outputDir = os.path.join(
+                        alignDir, expression+'/'+inputDir_name)
+                    if not os.path.exists(outputDir):
+                        os.makedirs(outputDir)
 
-                inputDir = os.path.join(expression_path, inputDir_name)
-                align_face(inputDir, outputDir)
+                    inputDir = os.path.join(expression_path, inputDir_name)
+                    align_face(inputDir, outputDir)
+
+
+def extract_cnn_ft(dataset):
+    alignDir = '/media/tunguyen/Others/Dataset/FacialExpressions/processed_data/'+dataset+'/aligned_faces_extracted'
+    if dataset == 'SPOS':
+        alignDir = '/media/tunguyen/Others/Dataset/FacialExpressions/processed_data/'+dataset+'/frames'
+
+    # extract cnn features of each aligned face using VGGface
+    out_ft = '/media/tunguyen/Others/Dataset/FacialExpressions/processed_data/'+dataset+'/cnn_features_by_frame/'
+    keras.backend.set_image_dim_ordering('tf')
+    model = VGGFace(include_top=False, model='vgg16', input_shape=(
+        224, 224, 3), pooling='avg')  # pooling: None, avg or max
+    model.summary()
+
+    for expression in os.listdir(alignDir):
+        expression_path = os.path.join(alignDir, expression)
+
+        if expression in ['Happy', 'Neutral', 'Sad_']:
+            if expression == 'Happy':
+                out_ftDir = os.path.join(out_ft, 'Genuine')
+            else:
+                out_ftDir = os.path.join(out_ft, 'Fake')
+        else:
+            out_ftDir = os.path.join(out_ft, expression)
+
+        # if 1 == 1:
+        if expression in ['0', '1']:
+            for session in os.listdir(expression_path):
+                if not session in ['49_664_676']:
+                    session_path = os.path.join(expression_path, session)
+                    # output folder to save features
+                    ft_f_dir = os.path.join(out_ftDir, session)
+                    if not os.path.exists(ft_f_dir):
+                        os.makedirs(ft_f_dir)
+
+                    get_cnn_features(session_path, ft_f_dir, model)
+
+
+
+def stat(dirs):
+    n_frames = []
+    n_frames_0 = []
+    n_frames_1 = []
+    tot_0 = 0
+    tot_1 = 0
+
+    # walk through all files in the folder
+    for directory in dirs:
+        for seq_filename in sorted(os.listdir(directory)):
+            # print(seq_filename)
+            label = int(seq_filename.split('__')[0])
+            frames = int(seq_filename.split('.')[0].split('__')[2])
+            n_frames.append(frames)
+            if label == 0: 
+                n_frames_0.append(frames)
+                tot_0 += 1
+            if label == 1: 
+                n_frames_1.append(frames)
+                tot_1 += 1
+
+    n_frames_ar = np.array(n_frames)
+    n_frames_0_ar = np.array(n_frames_0)
+    n_frames_1_ar = np.array(n_frames_1)
+
+    # print('n_frames ', n_frames_ar)
+    print('mean_frames ', np.mean(n_frames_ar))
+    # print('n_frames_0 ', n_frames_0_ar)
+    print('mean_frames_0 ', np.mean(n_frames_0_ar))
+    # print('n_frames_1 ', n_frames_1_ar)
+    print('mean_frames_1 ', np.mean(n_frames_1_ar))
+    print('Total samples 0 ', tot_0)
+    print('Total samples 1 ', tot_1)
+
+    plt.figure()
+    objects = range(len(n_frames))
+    y_pos = np.arange(len(objects))
+    plt.bar(y_pos, n_frames, align='center', alpha=0.5)
+    plt.xticks(y_pos, objects)
+    plt.ylabel('Frames')
+
+    plt.figure()
+    objects = range(len(n_frames_1))
+    y_pos = np.arange(len(objects))
+    plt.bar(y_pos, n_frames_1, align='center', alpha=0.5)
+    plt.xticks(y_pos, objects)
+    plt.ylabel('Frames (1)')
+
+    plt.figure()
+    objects = range(len(n_frames_0))
+    y_pos = np.arange(len(objects))
+    plt.bar(y_pos, n_frames_0, align='center', alpha=0.5)
+    plt.xticks(y_pos, objects)
+    plt.ylabel('Frames (0)')
+
+    plt.show()
+
+
+def draw_rectangle(dataset):
+    alignDir = '/media/tunguyen/Others/Dataset/FacialExpressions/processed_data/'+dataset+'/aligned_faces_extracted'
+    out_dir = '/media/tunguyen/Others/Dataset/FacialExpressions/processed_data/'+dataset+'/aligned_faces_extracted__hidden'
+
+    for expression in sorted(os.listdir(alignDir)):
+        # if expression in ['Happy', 'Neutral', 'Sad_']:
+        if 1 == 1:
+        # if expression == '1':
+            expression_path = os.path.join(alignDir, expression)
+            print(expression_path)
+            for inputDir_name in sorted(os.listdir(expression_path)):
+                # if inputDir_name == '49_475_520':
+                if 1 == 1:
+                    outputDir = os.path.join(out_dir, expression+'/'+inputDir_name)
+                    if not os.path.exists(outputDir):
+                        os.makedirs(outputDir)
+
+                    inputDir = os.path.join(expression_path, inputDir_name)
+                    find_landmarks(inputDir, outputDir)
+
 
 
 if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-d', '--dataset', type=str, default='MAHNOB')
+
+    args = parser.parse_args()
+    dataset = args.dataset
+    # dataset = 'MAHNOB'
 
     ''' MMI dataset '''
     # get_label_mmi()
@@ -226,8 +355,22 @@ if __name__ == '__main__':
     # extract_frames_dataset('MAHNOB')
     # filter_mahnob()
 
-    # detect_align_face('MMI')
-    detect_align_face('MAHNOB')
+    # detect_align_face(dataset)
+
+    # draw_rectangle(dataset)
+    # extract_cnn_ft(dataset)
+
+    # create sequence of cnn features and save to
+    frame_ft_dir = '/media/tunguyen/Others/Dataset/FacialExpressions/processed_data/'+dataset+'/cnn_features_by_frame/'
+    out_seq_ft_dir = '/media/tunguyen/Others/Dataset/FacialExpressions/processed_data/'+dataset+'/seq_cnn_features/Train/'
+    out_seq_ft_dir__test = '/media/tunguyen/Others/Dataset/FacialExpressions/processed_data/'+dataset+'/seq_cnn_features/Test/'
+    # create_seq_ft(frame_ft_dir, out_seq_ft_dir__test)
+
+    # stat data
+    # stat([out_seq_ft_dir, out_seq_ft_dir__test])
+    stat([out_seq_ft_dir__test])
+
+
 
     '''
     # detect and align faces from frames

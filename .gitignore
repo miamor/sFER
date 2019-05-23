@@ -6,7 +6,7 @@
 *.pyc
 dist/
 *.egg-info
-/model
+/output
 /checkpoints
 /logs
 /data

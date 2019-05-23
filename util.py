@@ -44,21 +44,27 @@ def get_data(seq_cnn_ft_folder_path, num_frames, num_classes, input_length):
         video = z[1]
 
         ft_file = os.path.join(seq_cnn_ft_folder_path, seq_cnn_ft_vid_file)
+        # print(ft_file)
 
         # get cnn features of each video
         temp_list = []
-        with open(ft_file, 'rb') as ftin:
-            features = pickle.load(ftin)
-            i = 0
-            for ft in features:
-                i = i+1
-                if i <= num_frames:
-                    temp_list.append(ft)
+        ftin = open(ft_file, 'rb')
+        features = pickle.load(ftin)
+        i = 0
+        for ft in features:
+            i = i+1
+            if i <= num_frames:
+                temp_list.append(ft)
+        ftin.close()
         flat = np.array(list(temp_list))
 
         # pad to ft array
         if i < num_frames:
             zeros = np.zeros((num_frames-i, 512))
+            # print(i)
+            # print(zeros.shape)
+            # print(flat.shape)
+            # print('\n')
             flat = np.concatenate((flat, zeros), axis=0)
 
         X.append(flat)
@@ -68,8 +74,8 @@ def get_data(seq_cnn_ft_folder_path, num_frames, num_classes, input_length):
     X = np.array(X)
     Y = to_categorical(y, num_classes)
 
-    print(X.shape)
-    print(Y.shape)
+    print('X.shape ', X.shape)
+    print('Y.shape ', Y.shape)
 
     return X, Y, np.array(y), files
 
@@ -117,25 +123,29 @@ def create_seq_ft(input_dir, out_dir):
         os.makedirs(out_dir)
 
     for label in os.listdir(input_dir):
-        y = 1 if label == 'Genuine' else 0
+        # y = 1 if label == 'Genuine' else 0
+        if label in ['0', '1']:
+        # if label in ['0_']:
+        # if 1 == 1:
+            y = label
 
-        label_path = os.path.join(input_dir, label)
-        # for each video in this label folder
-        for folder in os.listdir(label_path):
-            folder_path = os.path.join(label_path, folder)
+            label_path = os.path.join(input_dir, label)
+            # for each video in this label folder
+            for folder in os.listdir(label_path):
+                folder_path = os.path.join(label_path, folder)
 
-            cnn_features = read_spatial_features(folder_path)
+                cnn_features = read_spatial_features(folder_path)
 
-            print(len(cnn_features))
-            # print(cnn_features.shape)
+                print(len(cnn_features))
+                # print(cnn_features.shape)
 
-            ft_file = os.path.join(out_dir, str(
-                y)+'__' + folder + '__'+str(len(cnn_features))+'.pkl')
-            if not os.path.isfile(ft_file):
-                with open(ft_file, 'wb') as fout:
-                    pickle.dump(cnn_features, fout)
-            else:
-                print('File '+ft_file+' existed.')
+                ft_file = os.path.join(out_dir, str(
+                    y)+'__' + folder + '__'+str(len(cnn_features))+'.pkl')
+                if not os.path.isfile(ft_file):
+                    with open(ft_file, 'wb') as fout:
+                        pickle.dump(cnn_features, fout)
+                else:
+                    print('File '+ft_file+' existed.')
 
 
 def extract_frames(video_path, extract_frames_dir):
@@ -173,6 +183,110 @@ def extract_frames(video_path, extract_frames_dir):
             count += 1
 
         cv2.waitKey(10)
+
+
+def find_landmarks(inputDir, outputDir, landmarks='outerEyesAndNose', size=96, useCNN=True, skipMulti=False, verbose=True):
+    ''' Align all faces chips from folder inputDir and save output to outputDir '''
+
+    fileDir = '/media/tunguyen/Devs/DeepLearning/FaceReg/openface'
+    modelDir = os.path.join(fileDir, 'models')
+    dlibModelDir = os.path.join(modelDir, 'dlib')
+    # openfaceModelDir = os.path.join(modelDir, 'openface')
+
+    dlibFacePredictor = os.path.join(
+        dlibModelDir, "shape_predictor_68_face_landmarks.dat")
+    # dlibFacePredictor = os.path.join(
+    #     dlibModelDir, "shape_predictor_5_face_landmarks.dat")
+    cnnDetectModel = os.path.join(dlibModelDir, "mmod_human_face_detector.dat")
+
+    openface.helper.mkdirP(outputDir)
+
+    imgs = list(iterImgs(inputDir))
+
+    # Shuffle so multiple versions can be run at once.
+    random.shuffle(imgs)
+
+    landmarkMap = {
+        'outerEyesAndNose': openface.AlignDlib.OUTER_EYES_AND_NOSE,
+        'innerEyesAndBottomLip': openface.AlignDlib.INNER_EYES_AND_BOTTOM_LIP,
+        '5_landmarks': openface.AlignDlib.BASIC_5_POINTS
+    }
+    if landmarks not in landmarkMap:
+        raise Exception("Landmarks unrecognized: {}".format(landmarks))
+
+    if "predictor_5" in dlibFacePredictor:
+        landmarks = '5_landmarks'
+
+    landmarkIndices = landmarkMap[landmarks]
+
+    align = openface.AlignDlib(dlibFacePredictor, cnnDetectModel)
+
+    for imgObject in imgs:
+        print("=== {} ===".format(imgObject.path))
+        #outDir = os.path.join(outputDir, imgObject.cls)
+        # openface.helper.mkdirP(outDir)
+        outDir = outputDir
+        outputPrefix = os.path.join(outDir, imgObject.name)
+        imgPath = outputPrefix + ".png"
+        print('\n'+outDir)
+
+        if os.path.isfile(imgPath):
+        # if 1 == 0:
+            if verbose:
+                print("  + Already found, skipping.")
+        else:
+            rgb = imgObject.getRGB()
+            #bgr_img = cv2.imread(imgObject.path)
+            #rgb = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2RGB)
+
+            if rgb is None:
+                if verbose:
+                    print("  + Unable to load.")
+                outRgb = None
+            else:
+                if "predictor_68" in dlibFacePredictor:
+                    outRgb, landmarks = align.align(size, rgb,
+                                         landmarkIndices=landmarkIndices,
+                                         skipMulti=skipMulti,
+                                         useCNN=useCNN)
+                else:
+                    outRgb, landmarks = align.align(size, rgb,
+                                         useCNN=useCNN,
+                                         landmarksNum=5)
+
+                if outRgb is None and verbose:
+                    print("  + Unable to align.")
+
+            # print(outRgb)
+            if outRgb is not None and landmarks is not None:
+                if verbose:
+                    print("  + Writing aligned file to disk.")
+
+                print(landmarks)
+
+                outBgr = cv2.cvtColor(outRgb, cv2.COLOR_RGB2BGR)
+                # cv2.imwrite(imgPath, outBgr)
+
+                topy = landmarks[51][1] - 10
+                rightx = landmarks[54][0] + 8
+                leftx = landmarks[48][0] - 8
+                bottomy = landmarks[58][1]
+
+                cv2.rectangle(outBgr,(leftx, topy),(rightx,bottomy),(0,0,0),-1)
+
+                # for i in range(0, 68):
+                #     if i in [48, 58, 54, 51]:
+                #         cv2.putText(outBgr,
+                #                     text=str(i),
+                #                     org=(landmarks[i][0], landmarks[i][1]),
+                #                     fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                #                     fontScale=0.2,
+                #                     color=(255, 0, 0),
+                #                     thickness=1,
+                #                     lineType=2)
+                    
+                cv2.imwrite(imgPath, outBgr)
+
 
 
 def align_face(inputDir, outputDir, landmarks='outerEyesAndNose', size=96, useCNN=True, skipMulti=False, verbose=True):
@@ -217,10 +331,10 @@ def align_face(inputDir, outputDir, landmarks='outerEyesAndNose', size=96, useCN
         # openface.helper.mkdirP(outDir)
         outDir = outputDir
         outputPrefix = os.path.join(outDir, imgObject.name)
-        imgName = outputPrefix + ".png"
+        imgPath = outputPrefix + ".png"
         print('\n'+outDir)
 
-        if os.path.isfile(imgName):
+        if os.path.isfile(imgPath):
             if verbose:
                 print("  + Already found, skipping.")
         else:
@@ -234,12 +348,12 @@ def align_face(inputDir, outputDir, landmarks='outerEyesAndNose', size=96, useCN
                 outRgb = None
             else:
                 if "predictor_68" in dlibFacePredictor:
-                    outRgb = align.align(size, rgb,
+                    outRgb, _ = align.align(size, rgb,
                                          landmarkIndices=landmarkIndices,
                                          skipMulti=skipMulti,
                                          useCNN=useCNN)
                 else:
-                    outRgb = align.align(size, rgb,
+                    outRgb, _ = align.align(size, rgb,
                                          useCNN=useCNN,
                                          landmarksNum=5)
 
@@ -251,7 +365,9 @@ def align_face(inputDir, outputDir, landmarks='outerEyesAndNose', size=96, useCN
                 if verbose:
                     print("  + Writing aligned file to disk.")
                 outBgr = cv2.cvtColor(outRgb, cv2.COLOR_RGB2BGR)
-                cv2.imwrite(imgName, outBgr)
+                cv2.imwrite(imgPath, outBgr)
+
+
 
 
 def get_cnn_features(session_path, out_dir, model):
@@ -260,6 +376,8 @@ def get_cnn_features(session_path, out_dir, model):
     for img_file in os.listdir(session_path):
         ft_file_dir = os.path.join(
             out_dir, img_file).split('.')[0]+'.txt'
+
+        print('\n'+ft_file_dir)
 
         if not os.path.isfile(ft_file_dir):
             img_dir = os.path.join(session_path, img_file)
@@ -274,5 +392,7 @@ def get_cnn_features(session_path, out_dir, model):
             ft_file_dir = os.path.join(
                 out_dir, img_file).split('.')[0]+'.txt'
 
-            #print('Saving to '+ft_file_dir)
+            print('    + Saving features...')
             np.savetxt(ft_file_dir, features)
+        else:
+            print('    + Existed. Skip.')
